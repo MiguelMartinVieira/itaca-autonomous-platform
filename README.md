@@ -1,155 +1,127 @@
-# ⚡ Ítaca Autonomous Operations Platform — Event-Driven Architecture & LLM Agents
+# Ítaca Autonomous Operations Platform
 
-[![Python Version](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![Node.js Microservice](https://img.shields.io/badge/Node.js-REST%20Daemon-339933?style=flat-square&logo=nodedotjs&logoColor=white)](whatsapp-service/)
-[![AI Engine](https://img.shields.io/badge/AI%20Engine-Gemini%20Flash%20Cascades-4285F4?style=flat-square&logo=google&logoColor=white)](https://ai.google.dev/)
-[![Reliability](https://img.shields.io/badge/Resilience-Circuit%20Breaker%20Pattern-orange?style=flat-square)](#resilience--fault-tolerance)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square)](https://python.org)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 
-> An end-to-end event-driven operations platform and autonomous AI agent system engineered for **Academia Ítaca** (education marketplace scaled to **220+ tutors**, **150+ active students**, and approaching **€40k ARR** with **100% autonomous operations** and zero administrative overhead).
+The backend that runs [Academia Ítaca](https://itacacademia.com) — a tutoring marketplace with 220+ tutors, 150+ active students, and ~€40k in annual revenue. The entire operation (scheduling, billing, cancellation handling, teacher payouts, parent notifications) runs autonomously with zero admin staff.
 
----
+## Architecture
 
-## 🏛️ System Architecture
-
-The platform operates on a decoupled microservices architecture designed to isolate volatile third-party protocols while maintaining high-throughput business orchestration:
+The system is split into a Python orchestration layer and a Node.js messaging daemon, connected over local HTTP:
 
 ```mermaid
 flowchart TD
-    Cron["⏱️ VPS Linux Cron Schedulers"] --> Launcher["⚙️ Python CLI Dispatcher (launcher.py)"]
+    Cron["VPS Cron Jobs"] --> Launcher["Python CLI Dispatcher (launcher.py)"]
     
-    subgraph DataSyncLayer ["1. Data Sync & Invariant Enforcement"]
-        Sheets["☁️ Google Sheets API<br/>(Master General Ledger)"]
-        Client["🛡️ Rate-Limited Client (infrastructure/sheets_client.py)"]
-        Cache["💾 Local Parquet / CSV Cache (data/)"]
+    subgraph DataSync ["Data Sync"]
+        Sheets["Google Sheets API"]
+        Client["Rate-Limited Client"]
+        Cache["Local Parquet / CSV Cache"]
         Sheets <--> Client
         Client <--> Cache
     end
     
-    Launcher --> DataSyncLayer
+    Launcher --> DataSync
 
-    subgraph Workflows ["2. Core Business Orchestration Layer"]
-        Interceptor["🤖 Interceptor NLP Agent<br/>(Class Cancellation & Triage)"]
-        Padres["👨‍👩‍👦 Sibling Billing & Dispatch<br/>(Multi-Child Invariant Logic)"]
-        Watchdog["🐕 System Health Watchdog"]
+    subgraph Workflows ["Business Logic"]
+        Interceptor["Interceptor NLP Agent"]
+        Padres["Billing & Dispatch"]
+        Watchdog["Health Monitor"]
     end
     
-    DataSyncLayer --> Workflows
+    DataSync --> Workflows
 
-    subgraph IntelligenceLayer ["3. Frontier AI & Resilience"]
-        Cascade["🔄 Gemini Flash Model Cascade<br/>(2.5-flash -> 2.5-flash-lite -> 1.5-flash)"]
-        CB["⚡ Circuit Breaker & Exponential Backoff<br/>(shared/circuit_breaker.py)"]
-        HITL["⚠️ Human-in-the-Loop Triage<br/>(Confidence Threshold < 0.50)"]
+    subgraph AI ["AI & Resilience"]
+        Cascade["Gemini Flash Model Cascade"]
+        CB["Circuit Breaker + Backoff"]
+        HITL["Human Triage (low confidence)"]
         Interceptor --> CB
         CB --> Cascade
         Cascade --> HITL
     end
 
-    subgraph CommLayer ["4. Messaging Layer (Node.js REST Service)"]
-        Sender["📤 HTTP REST Client (whatsapp_sender.py)"]
-        NodeDaemon["🟢 Node.js Daemon (port 3100)<br/>whatsapp-web.js"]
-        SQLite["🗄️ Inbound Message Ledger (SQLite)"]
-        
+    subgraph Comms ["Messaging (Node.js)"]
+        Sender["HTTP Client"]
+        NodeDaemon["Node.js Daemon (port 3100)"]
+        SQLite["SQLite Message Ledger"]
         Workflows --> Sender
         Sender --> NodeDaemon
         NodeDaemon <--> SQLite
     end
 
-    NodeDaemon --> EndUsers["📱 End-Users (Parents, Tutors, Students)"]
+    NodeDaemon --> EndUsers["Parents, Tutors, Students"]
 ```
 
----
+## How it works
 
-## 📊 Operational Scale & Highlights
+### The Interceptor Agent (`workflows/interceptor.py`)
 
-| Dimension | Metric / Architecture Decision |
-| :--- | :--- |
-| **Operational Autonomy** | **100% autonomous**: zero administrative staff; all scheduling, billing, and reminders run autonomously |
-| **Active Network** | **220+ verified tutors**, **150+ active students**, managing peak weekly class flows |
-| **Revenue Scale** | Bootstrapped from €0 to **approaching €40,000 ARR** with zero venture funding |
-| **NLP Agent Throughput** | Processes all unstructured inbound messages, auto-cancelling with **$\ge 0.50$ confidence threshold** |
-| **Fault Tolerance** | Redundant circuit breakers and exponential backoff preventing external API cascading failures |
-| **Regulatory Compliance** | Bitset-accelerated Subset Sum algorithm balancing transactions under statutory bank limits |
+Parents send messages like *"Mateo has a fever and won't make it at 17:30"*. The interceptor agent:
 
----
+1. Runs the message through a Gemini Flash model cascade (`2.5-flash` → `1.5-flash`)
+2. If confidence ≥ 0.50: auto-cancels the session and updates the database
+3. If confidence < 0.50: routes to my phone for manual review
 
-## ⚡ Engineering Innovations
+### Circuit Breaker (`shared/circuit_breaker.py`)
 
-### 1. The Interceptor NLP Agent (`workflows/interceptor.py`)
-Unstructured messaging apps are notoriously noisy. Parents message: *"Mateo has a fever and won't make it at 17:30"*.
-- **Model Cascades**: Evaluates prompts across a cascade of models (`gemini-2.5-flash`, `gemini-1.5-flash`) to maximize solve rate while eliminating rate-limit spikes.
-- **Confidence Routing**:
-  $$\text{Confidence} \ge 0.50 \implies \text{Automated schedule cancellation and database update}$$
-  $$\text{Confidence} < 0.50 \implies \text{Automated triage alert dispatched to Admin phone}$$
+External APIs go down. Google Sheets rate-limits you. The circuit breaker prevents cascading failures:
 
-### 2. Circuit Breaker Pattern (`shared/circuit_breaker.py`)
-Protects against third-party network partitions (Google Sheets rate limits or LLM API degradation):
 ```python
 @circuit_breaker(failure_threshold=3, recovery_timeout=60, backoff_factor=2)
 def query_llm_inference(prompt: str) -> dict:
-    # Fails fast if external API is degraded, preventing execution hanging
     ...
 ```
 
-### 3. Decoupled Communication Daemon (`whatsapp-service/`)
-WhatsApp protocols require persistent WebSocket connections. 
-- Python execution jobs remain ephemeral and lightweight.
-- A long-running **Node.js microservice** manages sessions, incoming socket traffic, and local SQLite state persistence, exposing an authenticated HTTP REST interface on `localhost:3100`.
+### Messaging Daemon (`whatsapp-service/`)
 
----
+WhatsApp needs persistent WebSocket connections, which doesn't mix well with ephemeral cron jobs. Solution: a long-running Node.js process manages the session and exposes a REST API on `localhost:3100`. Python jobs stay lightweight and stateless.
 
-## 🚀 Quickstart & Standalone Demo
+## Running the demo
 
-### 1. Run the NLP Agent Simulation
-To test the message classification logic without live WhatsApp credentials:
+You can test the NLP classification logic without any credentials:
+
 ```bash
+git clone https://github.com/MiguelMartinVieira/itaca-autonomous-platform.git
+cd itaca-autonomous-platform
 python demo_agent_interceptor.py
 ```
 
-### 2. Setup Dependencies (via uv)
+For the full setup:
 ```bash
-# Clone the repository
-git clone https://github.com/MiguelMartinVieira/itaca-autonomous-platform.git
-cd itaca-autonomous-platform
-
-# Install dependencies
 uv sync
-```
-
-### 3. Configuration
-Copy `.env.example` to `.env` and provide your API keys:
-```bash
 cp .env.example .env
+# Fill in your API keys
 ```
 
----
-
-## 📁 Repository Structure
+## Project structure
 
 ```
 itaca-autonomous-platform/
-├── launcher.py               # Main CLI job orchestrator
-├── demo_agent_interceptor.py # Standalone demonstration harness
+├── launcher.py               # CLI job orchestrator
+├── demo_agent_interceptor.py  # Standalone demo (no credentials needed)
 ├── config/
-│   ├── settings.py           # Centralized configuration & environment loader
-│   └── .env.example          # Template environment file
+│   ├── settings.py            # Environment loader
+│   └── .env.example
 ├── infrastructure/
-│   ├── whatsapp_sender.py    # HTTP client adapter for messaging daemon
-│   ├── sheets_client.py      # Rate-limited Google Sheets singleton
-│   ├── admin_notifier.py     # Email & instant alert dispatcher
-│   └── data_updater.py       # Cache sync worker
+│   ├── whatsapp_sender.py     # HTTP adapter for messaging daemon
+│   ├── sheets_client.py       # Rate-limited Sheets singleton
+│   ├── admin_notifier.py      # Alert dispatcher
+│   └── data_updater.py        # Cache sync
 ├── shared/
-│   ├── circuit_breaker.py    # Resilient circuit breaker implementation
-│   ├── retry_utils.py        # Exponential backoff decorator
-│   ├── persistent_state.py   # Atomic state watermarking
-│   └── text_utils.py         # String sanitization & normalization
+│   ├── circuit_breaker.py     # Circuit breaker implementation
+│   ├── retry_utils.py         # Exponential backoff
+│   ├── persistent_state.py    # State watermarking
+│   └── text_utils.py          # String normalization
 ├── workflows/
-│   ├── interceptor.py        # Gemini Flash NLP cancellation agent
-│   ├── padres.py             # Sibling grouping & billing dispatcher
-│   └── whatsapp_watchdog.py  # Health monitoring daemon
+│   ├── interceptor.py         # NLP cancellation agent
+│   ├── padres.py              # Billing dispatcher
+│   └── whatsapp_watchdog.py   # Health monitor
 ├── whatsapp-service/
-│   ├── index.js              # Node.js REST API microservice
-│   └── package.json          # Dependencies for whatsapp-web.js
-├── pyproject.toml            # Project packaging & tooling
-└── README.md                 # Technical architecture blueprint
+│   ├── index.js               # Node.js REST microservice
+│   └── package.json
+└── pyproject.toml
 ```
+
+## License
+
+MIT

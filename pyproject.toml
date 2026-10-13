@@ -1,0 +1,28 @@
+[project]
+name = "itaca-autonomous-platform"
+version = "1.0.0"
+description = "Autonomous operations platform powered by LLM agent cascades, circuit breakers, and event-driven microservices"
+readme = "README.md"
+authors = [
+    { name = "Miguel Martín Vieira", email = "miguel.martin.vieira@gmail.com" }
+]
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31.0",
+    "pandas>=2.2.0",
+    "pydantic>=2.7.0",
+    "pytz>=2024.1",
+    "google-genai>=0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-mock>=3.14.0",
+    "ruff>=0.4.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

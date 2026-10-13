@@ -1,0 +1,17 @@
+{
+  "name": "itaca-whatsapp-service",
+  "version": "1.0.0",
+  "description": "Servicio WhatsApp para Academia Itaca - escucha mensajes + API REST para enviar",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
+    "postinstall": "node patch-wwebjs.js"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "^1.26.1",
+    "express": "^4.21.0",
+    "better-sqlite3": "^11.7.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

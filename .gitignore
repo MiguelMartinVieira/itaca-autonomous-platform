@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+env/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Credentials & Secrets (CRITICAL)
+.env
+.env.*
+*.json
+!package.json
+config/credentials.json
+*.key
+*.pem
+
+# Data, Logs & SQLite
+data/
+logs/
+*.csv
+*.xlsx
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Node.js / WhatsApp Service
+whatsapp-service/node_modules/
+whatsapp-service/wa-session/
+whatsapp-service/.wwebjs_cache/
+whatsapp-service/*.db
+
+# macOS & OS
+.DS_Store
+Thumbs.db
